@@ -107,7 +107,6 @@ impl RenderBackend for VulkanRenderBackend {
         self.frame_data_index = self.frame_data_index.wrapping_add(1);
         let frame_data = &self.frame_data[self.frame_data_index % self.frame_data.len()];
 
-        // If swapchain must be recreated wait for windows to not be minimized anymore
         if self.dirty_swapchain {
             let PhysicalSize { width, height } = window.inner_size();
             if width > 0 && height > 0 {
@@ -120,7 +119,10 @@ impl RenderBackend for VulkanRenderBackend {
                     .expect("Failed to rebuild renderer pipeline");
                 self.dirty_swapchain = false;
             } else {
-                /* No need to render a frame when the window size is zero */
+                perf.mark("fence");
+                perf.mark("before submit");
+                perf.mark("after submit");
+                perf.mark("present");
                 return;
             }
         }
@@ -145,6 +147,9 @@ impl RenderBackend for VulkanRenderBackend {
             Ok((image_index, _)) => image_index,
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                 self.dirty_swapchain = true;
+                perf.mark("before submit");
+                perf.mark("after submit");
+                perf.mark("present");
                 return;
             }
             Err(error) => {
@@ -162,7 +167,6 @@ impl RenderBackend for VulkanRenderBackend {
         let wait_semaphores = [frame_data.semaphore_image_available];
         let signal_semaphores = [frame_data.semaphore_render_finished];
 
-        // Re-record commands to draw geometry
         record_command_buffers(
             &self.vulkan_context.device,
             frame_data.command_pool,

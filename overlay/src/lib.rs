@@ -262,7 +262,7 @@ pub fn init(options: OverlayOptions) -> Result<System> {
         }
         _ => {
             log::info!("Using DirectX renderer");
-            Box::new(unsafe { DirectXRenderBackend::new(&overlay_window)? })
+            Box::new(unsafe { DirectXRenderBackend::new(&overlay_window, &mut imgui)? })
         }
     };
 

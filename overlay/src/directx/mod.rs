@@ -132,7 +132,12 @@ pub struct DirectXRenderBackend {
 }
 
 impl DirectXRenderBackend {
-    pub unsafe fn new(window: &Window) -> Result<Self, DirectXError> {
+    pub unsafe fn new(window: &Window, imgui: &mut imgui::Context) -> Result<Self, DirectXError> {
+        imgui
+            .io_mut()
+            .backend_flags
+            .insert(imgui::BackendFlags::RENDERER_HAS_VTX_OFFSET);
+
         let window_handle = window
             .window_handle()
             .map_err(|_| DirectXError::DeviceCreationFailed(windows::core::Error::from_win32()))?;
@@ -799,8 +804,8 @@ impl RenderBackend for DirectXRenderBackend {
                     );
                     device_context.IASetIndexBuffer(Some(index_buffer), DXGI_FORMAT_R16_UINT, 0);
 
-                    let mut vtx_offset = 0;
-                    let mut idx_offset = 0;
+                    let mut global_vtx_offset = 0;
+                    let mut global_idx_offset = 0;
                     let clip_off = draw_data.display_pos;
                     let clip_scale = draw_data.framebuffer_scale;
 
@@ -822,19 +827,24 @@ impl RenderBackend for DirectXRenderBackend {
                                         };
                                         device_context.RSSetScissorRects(Some(&[r]));
 
+                                        let vtx_offset =
+                                            (global_vtx_offset + cmd_params.vtx_offset) as i32;
+                                        let idx_offset =
+                                            (global_idx_offset + cmd_params.idx_offset) as u32;
+
                                         device_context.DrawIndexed(
                                             count as u32,
-                                            idx_offset as u32,
-                                            vtx_offset as i32,
+                                            idx_offset,
+                                            vtx_offset,
                                         );
                                     }
-                                    idx_offset += count;
                                 }
                                 imgui::DrawCmd::ResetRenderState => {}
                                 imgui::DrawCmd::RawCallback { .. } => {}
                             }
                         }
-                        vtx_offset += draw_list.vtx_buffer().len();
+                        global_vtx_offset += draw_list.vtx_buffer().len();
+                        global_idx_offset += draw_list.idx_buffer().len();
                     }
                 }
             }
@@ -844,7 +854,7 @@ impl RenderBackend for DirectXRenderBackend {
 
         if let Some(swap_chain) = &self.swap_chain {
             unsafe {
-                let present_result = swap_chain.Present(1, 0);
+                let present_result = swap_chain.Present(0, 0);
                 if present_result.is_err() {
                     let error_code = present_result.0;
                     if error_code == DXGI_ERROR_INVALID_CALL.0 {

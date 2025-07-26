@@ -696,155 +696,149 @@ impl RenderBackend for DirectXRenderBackend {
             }
         }
 
-        if total_vtx == 0 {
-            perf.mark("directx_imgui");
-            if let Some(swap_chain) = &self.swap_chain {
-                unsafe {
-                    let present_result = swap_chain.Present(1, 0);
-                    if present_result.is_err() {
-                        let error_code = present_result.0;
-                        if error_code == DXGI_ERROR_INVALID_CALL.0 {
-                            self.dirty_swap_chain = true;
-                        }
-                    }
-                }
+        if let (Some(device_context), Some(render_target_view)) =
+            (&self.device_context, &self.render_target_view)
+        {
+            unsafe {
+                device_context.OMSetRenderTargets(Some(&[Some(render_target_view.clone())]), None);
+                let clear_color = [0.0f32, 0.0f32, 0.0f32, 0.0f32];
+                device_context.ClearRenderTargetView(render_target_view, clear_color.as_ptr());
             }
-            perf.mark("directx_present");
-            return;
         }
 
-        if let Ok(()) = unsafe { self.ensure_buffers(total_vtx as usize, total_idx as usize) } {
-            if let Ok(()) = unsafe { self.upload_draw_data(draw_data) } {
-                let device_context = self.device_context.as_ref().unwrap();
-                let render_target_view = self.render_target_view.as_ref().unwrap();
-                let blend_state = self.blend_state.as_ref().unwrap();
-                let rasterizer_state = self.rasterizer_state.as_ref().unwrap();
-                let vertex_shader = self.vertex_shader.as_ref().unwrap();
-                let pixel_shader = self.pixel_shader.as_ref().unwrap();
-                let input_layout = self.input_layout.as_ref().unwrap();
-                let vertex_buffer = self.vertex_buffer.as_ref().unwrap();
-                let index_buffer = self.index_buffer.as_ref().unwrap();
+        if total_vtx > 0 {
+            if let Ok(()) = unsafe { self.ensure_buffers(total_vtx as usize, total_idx as usize) } {
+                if let Ok(()) = unsafe { self.upload_draw_data(draw_data) } {
+                    let device_context = self.device_context.as_ref().unwrap();
+                    let blend_state = self.blend_state.as_ref().unwrap();
+                    let rasterizer_state = self.rasterizer_state.as_ref().unwrap();
+                    let vertex_shader = self.vertex_shader.as_ref().unwrap();
+                    let pixel_shader = self.pixel_shader.as_ref().unwrap();
+                    let input_layout = self.input_layout.as_ref().unwrap();
+                    let vertex_buffer = self.vertex_buffer.as_ref().unwrap();
+                    let index_buffer = self.index_buffer.as_ref().unwrap();
 
-                unsafe {
-                    device_context
-                        .OMSetRenderTargets(Some(&[Some(render_target_view.clone())]), None);
+                    unsafe {
+                        device_context.OMSetBlendState(Some(blend_state), None, 0xFFFFFFFF);
+                        device_context.RSSetState(Some(rasterizer_state));
 
-                    let clear_color = [0.0f32, 0.0f32, 0.0f32, 0.0f32];
-                    device_context.ClearRenderTargetView(render_target_view, clear_color.as_ptr());
+                        let viewport = D3D11_VIEWPORT {
+                            TopLeftX: 0.0,
+                            TopLeftY: 0.0,
+                            Width: self.window_size.0 as f32,
+                            Height: self.window_size.1 as f32,
+                            MinDepth: 0.0,
+                            MaxDepth: 1.0,
+                        };
+                        device_context.RSSetViewports(Some(&[viewport]));
 
-                    device_context.OMSetBlendState(Some(blend_state), None, 0xFFFFFFFF);
-                    device_context.RSSetState(Some(rasterizer_state));
+                        device_context.VSSetShader(Some(vertex_shader), None);
+                        device_context.PSSetShader(Some(pixel_shader), None);
+                        device_context.IASetInputLayout(Some(input_layout));
+                        device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-                    let viewport = D3D11_VIEWPORT {
-                        TopLeftX: 0.0,
-                        TopLeftY: 0.0,
-                        Width: self.window_size.0 as f32,
-                        Height: self.window_size.1 as f32,
-                        MinDepth: 0.0,
-                        MaxDepth: 1.0,
-                    };
-                    device_context.RSSetViewports(Some(&[viewport]));
-
-                    device_context.VSSetShader(Some(vertex_shader), None);
-                    device_context.PSSetShader(Some(pixel_shader), None);
-                    device_context.IASetInputLayout(Some(input_layout));
-                    device_context.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-                    if let (Some(font_shader_resource_view), Some(font_sampler)) =
-                        (&self.font_shader_resource_view, &self.font_sampler)
-                    {
-                        device_context.PSSetShaderResources(
-                            0,
-                            Some(&[Some(font_shader_resource_view.clone())]),
-                        );
-                        device_context.PSSetSamplers(0, Some(&[Some(font_sampler.clone())]));
-                    }
-
-                    if let Some(constant_buffer) = &self.constant_buffer {
-                        let l = draw_data.display_pos[0];
-                        let r = draw_data.display_pos[0] + draw_data.display_size[0];
-                        let t = draw_data.display_pos[1];
-                        let b = draw_data.display_pos[1] + draw_data.display_size[1];
-
-                        let mvp = [
-                            [2.0 / (r - l), 0.0, 0.0, 0.0],
-                            [0.0, 2.0 / (t - b), 0.0, 0.0],
-                            [0.0, 0.0, 0.5, 0.0],
-                            [(r + l) / (l - r), (t + b) / (b - t), 0.5, 1.0],
-                        ];
-
-                        let mut mapped_resource = D3D11_MAPPED_SUBRESOURCE::default();
-                        if let Ok(()) = device_context.Map(
-                            constant_buffer,
-                            0,
-                            D3D11_MAP_WRITE_DISCARD,
-                            0,
-                            Some(&mut mapped_resource),
-                        ) {
-                            let data_ptr = mapped_resource.pData as *mut f32;
-                            for i in 0..16 {
-                                *data_ptr.add(i) = mvp[i / 4][i % 4];
-                            }
-                            device_context.Unmap(constant_buffer, 0);
+                        if let (Some(font_shader_resource_view), Some(font_sampler)) =
+                            (&self.font_shader_resource_view, &self.font_sampler)
+                        {
+                            device_context.PSSetShaderResources(
+                                0,
+                                Some(&[Some(font_shader_resource_view.clone())]),
+                            );
+                            device_context.PSSetSamplers(0, Some(&[Some(font_sampler.clone())]));
                         }
 
-                        device_context
-                            .VSSetConstantBuffers(0, Some(&[Some(constant_buffer.clone())]));
-                    }
+                        if let Some(constant_buffer) = &self.constant_buffer {
+                            let l = draw_data.display_pos[0];
+                            let r = draw_data.display_pos[0] + draw_data.display_size[0];
+                            let t = draw_data.display_pos[1];
+                            let b = draw_data.display_pos[1] + draw_data.display_size[1];
 
-                    let vertex_buffers = [Some(vertex_buffer.clone())];
-                    let strides = [std::mem::size_of::<ImGuiVertex>() as u32];
-                    let offsets = [0u32];
-                    device_context.IASetVertexBuffers(
-                        0,
-                        1,
-                        Some(vertex_buffers.as_ptr()),
-                        Some(strides.as_ptr()),
-                        Some(offsets.as_ptr()),
-                    );
-                    device_context.IASetIndexBuffer(Some(index_buffer), DXGI_FORMAT_R16_UINT, 0);
+                            let mvp = [
+                                [2.0 / (r - l), 0.0, 0.0, 0.0],
+                                [0.0, 2.0 / (t - b), 0.0, 0.0],
+                                [0.0, 0.0, 0.5, 0.0],
+                                [(r + l) / (l - r), (t + b) / (b - t), 0.5, 1.0],
+                            ];
 
-                    let mut global_vtx_offset = 0;
-                    let mut global_idx_offset = 0;
-                    let clip_off = draw_data.display_pos;
-                    let clip_scale = draw_data.framebuffer_scale;
-
-                    for draw_list in draw_data.draw_lists() {
-                        for cmd in draw_list.commands() {
-                            match cmd {
-                                imgui::DrawCmd::Elements { count, cmd_params } => {
-                                    if count > 0 {
-                                        let clip_rect = cmd_params.clip_rect;
-                                        let r = RECT {
-                                            left: ((clip_rect[0] - clip_off[0]) * clip_scale[0])
-                                                as i32,
-                                            top: ((clip_rect[1] - clip_off[1]) * clip_scale[1])
-                                                as i32,
-                                            right: ((clip_rect[2] - clip_off[0]) * clip_scale[0])
-                                                as i32,
-                                            bottom: ((clip_rect[3] - clip_off[1]) * clip_scale[1])
-                                                as i32,
-                                        };
-                                        device_context.RSSetScissorRects(Some(&[r]));
-
-                                        let vtx_offset =
-                                            (global_vtx_offset + cmd_params.vtx_offset) as i32;
-                                        let idx_offset =
-                                            (global_idx_offset + cmd_params.idx_offset) as u32;
-
-                                        device_context.DrawIndexed(
-                                            count as u32,
-                                            idx_offset,
-                                            vtx_offset,
-                                        );
-                                    }
+                            let mut mapped_resource = D3D11_MAPPED_SUBRESOURCE::default();
+                            if let Ok(()) = device_context.Map(
+                                constant_buffer,
+                                0,
+                                D3D11_MAP_WRITE_DISCARD,
+                                0,
+                                Some(&mut mapped_resource),
+                            ) {
+                                let data_ptr = mapped_resource.pData as *mut f32;
+                                for i in 0..16 {
+                                    *data_ptr.add(i) = mvp[i / 4][i % 4];
                                 }
-                                imgui::DrawCmd::ResetRenderState => {}
-                                imgui::DrawCmd::RawCallback { .. } => {}
+                                device_context.Unmap(constant_buffer, 0);
                             }
+
+                            device_context
+                                .VSSetConstantBuffers(0, Some(&[Some(constant_buffer.clone())]));
                         }
-                        global_vtx_offset += draw_list.vtx_buffer().len();
-                        global_idx_offset += draw_list.idx_buffer().len();
+
+                        let vertex_buffers = [Some(vertex_buffer.clone())];
+                        let strides = [std::mem::size_of::<ImGuiVertex>() as u32];
+                        let offsets = [0u32];
+                        device_context.IASetVertexBuffers(
+                            0,
+                            1,
+                            Some(vertex_buffers.as_ptr()),
+                            Some(strides.as_ptr()),
+                            Some(offsets.as_ptr()),
+                        );
+                        device_context.IASetIndexBuffer(
+                            Some(index_buffer),
+                            DXGI_FORMAT_R16_UINT,
+                            0,
+                        );
+
+                        let mut global_vtx_offset = 0;
+                        let mut global_idx_offset = 0;
+                        let clip_off = draw_data.display_pos;
+                        let clip_scale = draw_data.framebuffer_scale;
+
+                        for draw_list in draw_data.draw_lists() {
+                            for cmd in draw_list.commands() {
+                                match cmd {
+                                    imgui::DrawCmd::Elements { count, cmd_params } => {
+                                        if count > 0 {
+                                            let clip_rect = cmd_params.clip_rect;
+                                            let r = RECT {
+                                                left: ((clip_rect[0] - clip_off[0]) * clip_scale[0])
+                                                    as i32,
+                                                top: ((clip_rect[1] - clip_off[1]) * clip_scale[1])
+                                                    as i32,
+                                                right: ((clip_rect[2] - clip_off[0])
+                                                    * clip_scale[0])
+                                                    as i32,
+                                                bottom: ((clip_rect[3] - clip_off[1])
+                                                    * clip_scale[1])
+                                                    as i32,
+                                            };
+                                            device_context.RSSetScissorRects(Some(&[r]));
+
+                                            let vtx_offset =
+                                                (global_vtx_offset + cmd_params.vtx_offset) as i32;
+                                            let idx_offset =
+                                                (global_idx_offset + cmd_params.idx_offset) as u32;
+
+                                            device_context.DrawIndexed(
+                                                count as u32,
+                                                idx_offset,
+                                                vtx_offset,
+                                            );
+                                        }
+                                    }
+                                    imgui::DrawCmd::ResetRenderState => {}
+                                    imgui::DrawCmd::RawCallback { .. } => {}
+                                }
+                            }
+                            global_vtx_offset += draw_list.vtx_buffer().len();
+                            global_idx_offset += draw_list.idx_buffer().len();
+                        }
                     }
                 }
             }

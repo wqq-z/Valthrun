@@ -245,7 +245,7 @@ pub struct CSchemaClassBinding {
     #[field(offset = 0x28)]
     pub fields: Ptr64<[Copy<dyn CSchemaClassField>]>,
 
-    #[field(offset = 0x38)]
+    #[field(offset = 0x30)]
     pub base_class: Ptr64<dyn CSchemaClassInheritance>,
 
     #[field(offset = 0x40)]
@@ -263,19 +263,10 @@ pub struct CSchemaClassBinding {
     pub flags: u64,
 }
 
-#[raw_struct(size = 0x20)]
+#[raw_struct(size = 0x10)]
 pub struct CSchemaClassInheritance {
     #[field(offset = 0x08)]
-    pub maybe_type: u8,
-
-    #[field(offset = 0x18)]
-    pub class_binding: Ptr64<dyn CSchemaBaseClassBinding>,
-}
-
-#[raw_struct(size = 0x18)]
-pub struct CSchemaBaseClassBinding {
-    #[field(offset = 0x10)]
-    pub name: PtrCStr,
+    pub class_binding: Ptr64<dyn CSchemaClassBinding>,
 }
 
 #[raw_struct(size = 0x40)]

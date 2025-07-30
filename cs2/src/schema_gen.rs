@@ -402,6 +402,9 @@ fn read_class_binding(
         class_name,
         class_type_scope_name
     );
+    if class_name == "CCSPlayer_BuyServices" {
+        log::debug!("binding ptr = {:X}", binding_ptr.address);
+    }
 
     let mut definition: ClassDefinition = Default::default();
     definition.schema_scope_name = class_type_scope_name.clone();
@@ -409,27 +412,26 @@ fn read_class_binding(
     definition.class_size = binding.size()? as u64;
     definition.offsets.reserve(binding.field_size()? as usize);
 
-    if let Some(class_inheritance) = binding.base_class()?.value_copy(memory.view())? {
-        if class_inheritance.maybe_type()? != 0x01 {
-            log::warn!(
-                "Encountered clas inheritance with unexpected type {}. class binding = {:X}",
-                class_inheritance.maybe_type()?,
-                binding_ptr.address
-            );
-        }
-
+    let base_class_ptr = binding.base_class()?;
+    if let Some(class_inheritance) = base_class_ptr.value_copy(memory.view())? {
         if let Some(base_class) = class_inheritance
             .class_binding()?
             .value_copy(memory.view())?
         {
-            definition.inherits = Some(
-                base_class
-                    .name()?
-                    .read_string(memory.view())?
-                    .context("expected base class to have a name")?,
-            );
+            let (base_class_type_scope_name, base_class_name) =
+                read_class_scope_and_name(states, base_class.deref())
+                    .context("base class name and scope")?;
+
+            definition.inherits = Some(format!(
+                "{}::{}",
+                mod_name_from_schema_name(&base_class_type_scope_name),
+                base_class_name.replace(":", "_")
+            ));
         } else {
-            log::warn!("Encountered class inheritance info without base class name (type = {}, class binding = {:X})", class_inheritance.maybe_type()?, binding_ptr.address);
+            log::warn!(
+                "Encountered class inheritance info without base class name (class binding = {:X})",
+                binding_ptr.address
+            );
         }
     }
 

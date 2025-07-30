@@ -68,10 +68,9 @@ impl RuntimeSchemaProvider {
             log::trace!("Name: {} @ {:X}", scope_name, scope_ptr.address);
 
             let declared_classes = scope.type_declared_class()?;
-            let declared_classes = declared_classes.elements()?.elements_copy(
-                memory.view(),
-                0..declared_classes.highest_entry()?.wrapping_add(1) as usize,
-            )?;
+            let declared_classes = declared_classes
+                .elements()?
+                .elements_copy(memory.view(), 0..declared_classes.entry_count()? as usize)?;
 
             for rb_node in declared_classes {
                 let declared_class = rb_node
@@ -81,16 +80,16 @@ impl RuntimeSchemaProvider {
                     .value_reference(memory.view_arc())
                     .context("tree null entry")?;
 
-                let schema_class = declared_class.declaration()?;
-                let binding = schema_class
-                    .value_copy(memory.view())?
-                    .context("class declaration ptr null")?;
+                let Some(binding) = declared_class.declaration()?.value_copy(memory.view())? else {
+                    /* steamaudio.dll seems to register a nullptr .... */
+                    continue;
+                };
 
                 let (class_type_scope_name, class_name) =
                     cs2::read_class_scope_and_name(states, binding.deref())?;
                 log::trace!(
                     "   {:X} {} -> {}",
-                    schema_class.address,
+                    declared_class.declaration()?.address,
                     class_name,
                     class_type_scope_name
                 );

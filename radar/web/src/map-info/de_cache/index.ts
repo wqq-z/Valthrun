@@ -1,4 +1,5 @@
 import { LoadedMap } from "..";
+import SimpleRadarDefault from "./map_style_simple_radar.png";
 import OfficialDefault from "./map_style_cs2.png";
 
 export default {
@@ -17,7 +18,14 @@ export default {
         }
     ],
 
-    mapStyles: [{
+    mapStyles: [
+        {
+            name: "SimpleRadar",
+            map: {
+                default: SimpleRadarDefault,
+            }
+        },
+        {
             name: "Official",
             map: {
                 default: OfficialDefault,

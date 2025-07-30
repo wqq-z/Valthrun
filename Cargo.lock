@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "controller"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -711,7 +711,6 @@ dependencies = [
  "nalgebra",
  "obfstr",
  "overlay",
- "radar-client",
  "rand",
  "raw_struct",
  "rfd",
@@ -807,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "cs2"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "cs2-schema-cutl",
@@ -820,12 +819,12 @@ dependencies = [
  "raw_struct",
  "serde_json",
  "utils-state",
- "valthrun-driver-interface",
+ "vtd-libum",
 ]
 
 [[package]]
 name = "cs2-schema-cutl"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "raw_struct",
@@ -833,7 +832,7 @@ dependencies = [
 
 [[package]]
 name = "cs2-schema-definition"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "raw_struct",
@@ -843,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "cs2-schema-dumper"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -858,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "cs2-schema-generated"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "cs2-schema-cutl",
@@ -872,14 +871,14 @@ dependencies = [
 
 [[package]]
 name = "cs2-schema-provider"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "log",
 ]
 
 [[package]]
 name = "cs2-schema-provider-impl"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "cs2",
@@ -1927,9 +1926,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.22"
+version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
 name = "malloc_buf"
@@ -2699,7 +2698,7 @@ dependencies = [
 
 [[package]]
 name = "radar-client"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2721,7 +2720,7 @@ dependencies = [
 
 [[package]]
 name = "radar-client-standalone"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -2740,7 +2739,7 @@ dependencies = [
 
 [[package]]
 name = "radar-server"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2759,7 +2758,7 @@ dependencies = [
 
 [[package]]
 name = "radar-server-standalone"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -2771,7 +2770,7 @@ dependencies = [
 
 [[package]]
 name = "radar-shared"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "serde",
@@ -3857,45 +3856,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "valthrun-driver-interface"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "libloading",
- "log",
- "obfstr",
- "rand",
- "thiserror",
- "valthrun-driver-protocol",
- "windows 0.48.0",
-]
-
-[[package]]
-name = "valthrun-driver-protocol"
-version = "0.1.0"
-dependencies = [
- "bitflags 2.6.0",
-]
-
-[[package]]
-name = "valthrun-driver-um"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "lazy_static",
- "log",
- "valthrun-driver-protocol",
- "windows 0.48.0",
-]
-
-[[package]]
 name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vtd-libum"
+version = "0.1.0"
+source = "git+https://github.com/Valthrun/valthrun-driver?rev=bc88b65#bc88b6517b4430aefc41f16ba46025efdf05afa1"
+dependencies = [
+ "libloading",
+ "log",
+ "obfstr",
+ "thiserror",
+ "vtd-protocol",
+ "windows 0.48.0",
+]
+
+[[package]]
+name = "vtd-protocol"
+version = "0.1.0"
+source = "git+https://github.com/Valthrun/valthrun-driver?rev=bc88b65#bc88b6517b4430aefc41f16ba46025efdf05afa1"
+dependencies = [
+ "bitflags 2.6.0",
+]
 
 [[package]]
 name = "walkdir"

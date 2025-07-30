@@ -34,9 +34,7 @@ use radar_shared::{
 };
 use utils_state::StateRegistry;
 
-pub trait RadarGenerator: Send {
-    fn generate_state(&mut self) -> anyhow::Result<RadarState>;
-}
+use super::RadarGenerator;
 
 fn planted_c4_to_radar_state(
     generator: &CS2RadarGenerator,

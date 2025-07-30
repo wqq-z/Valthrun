@@ -1,37 +1,28 @@
 import { LoadedMap } from "..";
-import OfficialDefault from "./map_style_cs2.png";
-import OfficialLower from "./map_style_cs2_lower.png";
+import SimpleRadarDefault from "./map_style_simple_radar.png";
 
 export default {
     mapName: "de_train",
     displayName: "Train",
 
-    pos_x: -2308, // upper left world coordinate
-    pos_y: 2078,
-    scale: 4.082077,
-
-
+    pos_x: -2510, // upper left world coordinate
+    pos_y: 2440,
+    scale: 4.74,
 
     verticalSections: [
         {
             name: "default",
-            altitudeMax: 20000,
-            altitudeMin: -50,
-        },
-        {
-            name: "lower",
-            altitudeMax: -50,
-            altitudeMin: -5000,
+            altitudeMax: 10000,
+            altitudeMin: -10000,
         }
     ],
 
     mapStyles: [
         {
-            name: "Official",
+            name: "SimpleRadar",
             map: {
-                default: OfficialDefault,
-                lower: OfficialLower
+                default: SimpleRadarDefault,
             }
-        }
+        },
     ]
 } satisfies LoadedMap;

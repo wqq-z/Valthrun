@@ -62,6 +62,7 @@ pub struct IdHashEntry {
 pub struct CSchemaSystemTypeScope {
     #[field(offset = 0x08)]
     pub scope_name: FixedCStr<0x100>,
+
     // pub parent_scope: Ptr64<dyn CSchemaSystemTypeScope> = 0x108,
     // pub buildin_types_initialized: bool = 0x110,
     // pub type_buildin: CSchemaType[14] = 0x118,
@@ -79,9 +80,14 @@ pub struct CSchemaSystemTypeScope {
     // pub type_???: ??? = 0x4B0
     // pub type_atomic_i: ??? = 0x4D8
     // pub type_atomic_i: ??? = 0x488
+
+    // #[field(offset = 0x438)]
+    // pub type_declared_class_unknown: ??
     #[field(offset = 0x440)]
     pub type_declared_class: Copy<dyn UtlRBTree<IdHashEntry>>,
 
+    // #[field(offset = 0x460)]
+    // pub type_declared_class_spin_lock: CThreadSpinMutex,
     #[field(offset = 0x468)]
     pub type_declared_enum: Copy<dyn UtlRBTree<IdHashEntry>>,
     /* 0x500 contains A CUtlMemoryPoolBase */
@@ -93,8 +99,8 @@ pub struct CSchemaSystemTypeScope {
     // pub type_fixed_array: ??? = 0x558
     // pub type_bit_fields: ??? = 0x588
 
-    // pub class_bindings: CUtlTSHash<u64, Ptr<CSchemaClassBinding>> = 0x5C0,
-    // pub enum_bindings: CUtlTSHash<u64, Ptr<CSchemaEnumBinding>> = 0x2E50,
+    // pub enum_bindings: CUtlTSHash<u64, Ptr<CSchemaEnumBinding>> = 0x5B2,
+    // pub class_bindings: CUtlTSHash<u64, Ptr<CSchemaClassBinding>> = 0x2D90,
 }
 
 #[raw_struct(size = 0x20)]
@@ -131,6 +137,9 @@ impl CSchemaType for dyn CSchemaTypeDeclaredEnum {}
 
 #[raw_struct(size = 0x30)]
 pub struct CSchemaTypeDeclaredClass {
+    #[field(offset = 0x08)]
+    pub class_name: PtrCStr,
+
     #[field(offset = 0x20)]
     pub declaration: Ptr64<dyn CSchemaClassBinding>,
 }
@@ -213,7 +222,7 @@ pub struct CSchemaClassField {
     pub metadata: Ptr64<[Copy<dyn CSchemaMetadataEntry>]>,
 }
 
-#[raw_struct(size = 0x68)]
+#[raw_struct(size = 0x60)]
 pub struct CSchemaClassBinding {
     #[field(offset = 0x00)]
     pub parent: Ptr64<dyn CSchemaClassBinding>,
@@ -231,28 +240,26 @@ pub struct CSchemaClassBinding {
     pub field_size: u16,
 
     #[field(offset = 0x1E)]
-    pub static_size: u16,
-
-    #[field(offset = 0x20)]
     pub metadata_size: u16,
 
     #[field(offset = 0x28)]
     pub fields: Ptr64<[Copy<dyn CSchemaClassField>]>,
 
-    /* pub static_fields: Ptr<[CSchemaStaticField]> = 0x30, */
-    #[field(offset = 0x38)]
+    #[field(offset = 0x30)]
     pub base_class: Ptr64<dyn CSchemaClassInheritance>,
 
-    #[field(offset = 0x48)]
+    #[field(offset = 0x40)]
     pub metadata: Ptr64<[Copy<dyn CSchemaMetadataEntry>]>,
 
-    #[field(offset = 0x50)]
+    /// pointer to the type scope where the class has been registered into
+    #[field(offset = 0x48)]
     pub type_scope: Ptr64<dyn CSchemaSystemTypeScope>,
 
-    #[field(offset = 0x58)]
+    /// pointer to the declared class CSchemaType
+    #[field(offset = 0x50)]
     pub schema_type: Ptr64<dyn CSchemaType>,
 
-    #[field(offset = 0x60)]
+    #[field(offset = 0x58)]
     pub flags: u64,
 }
 

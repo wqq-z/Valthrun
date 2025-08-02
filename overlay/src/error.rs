@@ -18,6 +18,9 @@ pub enum OverlayError {
     #[error("vulkan: {0}")]
     Vulkan(#[from] VulkanError),
 
+    #[error("directx: {0}")]
+    DirectX(#[from] DirectXError),
+
     #[error("invalid window name ({0})")]
     WindowInvalidName(NulError),
 
@@ -74,4 +77,25 @@ pub enum VulkanError {
 
     #[error("render error: {0}")]
     RenderError(#[from] RendererError),
+}
+
+#[derive(Error, Debug)]
+pub enum DirectXError {
+    #[error("failed to create DirectX device: {0}")]
+    DeviceCreationFailed(#[from] windows::core::Error),
+
+    #[error("failed to create swap chain: {0}")]
+    SwapChainCreationFailed(windows::core::Error),
+
+    #[error("failed to create render target view: {0}")]
+    RenderTargetViewCreationFailed(windows::core::Error),
+
+    #[error("failed to create imgui renderer: {0}")]
+    ImGuiRendererCreationFailed(String),
+
+    #[error("directx rendering failed: {0}")]
+    RenderingFailed(String),
+
+    #[error("failed to resize swap chain: {0}")]
+    SwapChainResizeFailed(windows::core::Error),
 }

@@ -402,6 +402,9 @@ fn read_class_binding(
         class_name,
         class_type_scope_name
     );
+    if class_name == "CCSPlayer_BuyServices" {
+        log::debug!("binding ptr = {:X}", binding_ptr.address);
+    }
 
     let mut definition: ClassDefinition = Default::default();
     definition.schema_scope_name = class_type_scope_name.clone();
@@ -409,26 +412,27 @@ fn read_class_binding(
     definition.class_size = binding.size()? as u64;
     definition.offsets.reserve(binding.field_size()? as usize);
 
-    let base_class = binding.base_class()?;
-    if !base_class.is_null() {
-        let base_class = base_class
-            .value_reference(memory.view_arc())
-            .context("missing value reference")?
+    let base_class_ptr = binding.base_class()?;
+    if let Some(class_inheritance) = base_class_ptr.value_copy(memory.view())? {
+        if let Some(base_class) = class_inheritance
             .class_binding()?
             .value_copy(memory.view())?
-            .context("nullptr base class")?;
+        {
+            let (base_class_type_scope_name, base_class_name) =
+                read_class_scope_and_name(states, base_class.deref())
+                    .context("base class name and scope")?;
 
-        let (class_type_scope_name, class_name) =
-            read_class_scope_and_name(states, base_class.deref())
-                .context("base class scope and name")?;
-
-        let base_class = format!(
-            "{}::{}",
-            mod_name_from_schema_name(&class_type_scope_name),
-            class_name.replace(":", "_")
-        );
-
-        definition.inherits = Some(base_class);
+            definition.inherits = Some(format!(
+                "{}::{}",
+                mod_name_from_schema_name(&base_class_type_scope_name),
+                base_class_name.replace(":", "_")
+            ));
+        } else {
+            log::warn!(
+                "Encountered class inheritance info without base class name (class binding = {:X})",
+                binding_ptr.address
+            );
+        }
     }
 
     //log::debug!(" - {:X} {} ({}; {})", schema_class, class_offsets.class_name, binding.field_size, binding.size);
@@ -541,10 +545,9 @@ pub fn dump_schema(
         log::trace!("Dumping scope {} @ {:X}", scope_name, scope_ptr.address);
 
         let declared_classes = scope.type_declared_class()?;
-        let declared_classes = declared_classes.elements()?.elements_copy(
-            memory.view(),
-            0..declared_classes.highest_entry()?.wrapping_add(1) as usize,
-        )?;
+        let declared_classes = declared_classes
+            .elements()?
+            .elements_copy(memory.view(), 0..declared_classes.entry_count()? as usize)?;
 
         for rb_node in declared_classes {
             let declared_class = rb_node
@@ -553,6 +556,11 @@ pub fn dump_schema(
                 .cast::<dyn CSchemaTypeDeclaredClass>()
                 .value_reference(memory.view_arc())
                 .context("tree null entry")?;
+
+            if declared_class.declaration()?.is_null() {
+                log::warn!("Encountered null class declaration");
+                continue;
+            }
 
             let (class_scope_name, definition) =
                 read_class_binding(states, &declared_class.declaration()?).context(format!(
@@ -583,10 +591,9 @@ pub fn dump_schema(
         }
 
         let declared_enums = scope.type_declared_enum()?;
-        let declared_enums = declared_enums.elements()?.elements_copy(
-            memory.view(),
-            0..declared_enums.highest_entry()?.wrapping_add(1) as usize,
-        )?;
+        let declared_enums = declared_enums
+            .elements()?
+            .elements_copy(memory.view(), 0..declared_enums.entry_count()? as usize)?;
 
         for declared_enum in declared_enums {
             let declared_enum = declared_enum

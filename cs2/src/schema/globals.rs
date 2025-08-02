@@ -28,7 +28,7 @@ pub struct Globals {
     #[field(offset = 0x10)]
     pub max_player_count: u32,
 
-    #[field(offset = 0x34)]
+    #[field(offset = 0x30)]
     pub time_2: f32,
 
     #[field(offset = 0x38)]

@@ -16,11 +16,13 @@ where
     T: marker::Copy + Send + Sync + 'static,
 {
     #[field(offset = 0x00)]
-    pub elements: Ptr64<dyn Array<dyn UtlRBTreeNode<T>>>,
+    pub entry_count: u16,
 
-    // pub element_capacity: u16 = 0x08,
-    #[field(offset = 0x16)]
-    pub highest_entry: u16,
+    #[field(offset = 0x02)]
+    pub entry_capacity: u16,
+
+    #[field(offset = 0x08)]
+    pub elements: Ptr64<dyn Array<dyn UtlRBTreeNode<T>>>,
 }
 
 #[raw_struct(memory = "([u8; 0x08], T)")]

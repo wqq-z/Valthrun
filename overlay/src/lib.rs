@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use clipboard::ClipboardSupport;
 use copypasta::ClipboardContext;
+use directx::DirectXRenderBackend;
 use font::FontAtlasBuilder;
 use imgui::{
     Context,
@@ -35,6 +36,7 @@ use windows::Win32::{
     Foundation::{
         BOOL,
         HWND,
+        RECT,
     },
     Graphics::{
         Dwm::{
@@ -49,6 +51,7 @@ use windows::Win32::{
     UI::{
         Controls::MARGINS,
         WindowsAndMessaging::{
+            GetClientRect,
             SetWindowDisplayAffinity,
             SetWindowLongA,
             SetWindowLongPtrA,
@@ -81,6 +84,7 @@ mod input;
 mod window_tracker;
 pub use window_tracker::OverlayTarget;
 
+mod directx;
 mod opengl;
 mod vulkan;
 
@@ -93,6 +97,7 @@ mod util;
 pub use font::UnicodeTextRenderer;
 pub use util::show_error_message;
 use winit::{
+    dpi::PhysicalSize,
     raw_window_handle::{
         HasWindowHandle,
         RawWindowHandle,
@@ -100,13 +105,21 @@ use winit::{
     window::WindowAttributes,
 };
 
-fn create_window(event_loop: &EventLoop<()>, title: &str) -> Result<(HWND, Window)> {
+fn create_window(
+    event_loop: &EventLoop<()>,
+    title: &str,
+    target_size: Option<(u32, u32)>,
+) -> Result<(HWND, Window)> {
+    let mut window_attrs = WindowAttributes::default()
+        .with_title(title.to_owned())
+        .with_visible(false);
+
+    if let Some((width, height)) = target_size {
+        window_attrs = window_attrs.with_inner_size(PhysicalSize::new(width, height));
+    }
+
     #[allow(deprecated)]
-    let window = event_loop.create_window(
-        WindowAttributes::default()
-            .with_title(title.to_owned())
-            .with_visible(false),
-    )?;
+    let window = event_loop.create_window(window_attrs)?;
 
     let RawWindowHandle::Win32(handle) = window.window_handle().unwrap().as_raw() else {
         panic!()
@@ -121,12 +134,10 @@ fn create_window(event_loop: &EventLoop<()>, title: &str) -> Result<(HWND, Windo
                 GWL_STYLE,
                 (WS_POPUP | WS_VISIBLE | WS_CLIPSIBLINGS).0 as i32,
             );
-            SetWindowLongPtrA(
-                hwnd,
-                GWL_EXSTYLE,
-                (WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT).0
-                    as isize,
-            );
+
+            let ex_style = (WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT)
+                .0 as isize;
+            SetWindowLongPtrA(hwnd, GWL_EXSTYLE, ex_style);
 
             if !DwmIsCompositionEnabled()?.as_bool() {
                 return Err(OverlayError::DwmCompositionDisabled);
@@ -213,7 +224,18 @@ pub struct System {
 
 pub fn init(options: OverlayOptions) -> Result<System> {
     let event_loop = EventLoop::new().unwrap();
-    let (overlay_hwnd, overlay_window) = create_window(&event_loop, &options.title)?;
+    let target_hwnd = options.target.resolve_target_window()?;
+    let mut target_rect = RECT::default();
+    let target_size = if unsafe { GetClientRect(target_hwnd, &mut target_rect) }.as_bool() {
+        Some((
+            (target_rect.right - target_rect.left) as u32,
+            (target_rect.bottom - target_rect.top) as u32,
+        ))
+    } else {
+        None
+    };
+
+    let (overlay_hwnd, overlay_window) = create_window(&event_loop, &options.title, target_size)?;
 
     let window_tracker = WindowTracker::new(overlay_hwnd, &options.target)?;
 
@@ -223,16 +245,27 @@ pub fn init(options: OverlayOptions) -> Result<System> {
     let mut imgui_fonts = FontAtlasBuilder::new();
     imgui_fonts.register_font(include_bytes!("../resources/Roboto-Regular.ttf"))?;
     imgui_fonts.register_font(include_bytes!("../resources/NotoSansTC-Regular.ttf"))?;
-    /* fallback if we do not have the roboto version of the glyph */
     imgui_fonts.register_font(include_bytes!("../resources/unifont-15.1.05.otf"))?;
     imgui_fonts.register_codepoints(1..255);
 
-    let renderer: Box<dyn RenderBackend> =
-        if std::env::var("OVERLAY_VULKAN").map_or(false, |v| v == "1") {
-            Box::new(VulkanRenderBackend::new(&overlay_window, &mut imgui)?)
-        } else {
+    let backend = std::env::var("OVERLAY_BACKEND")
+        .unwrap_or_else(|_| "DIRECTX".to_string())
+        .to_uppercase();
+    let renderer: Box<dyn RenderBackend> = match backend.as_str() {
+        "OPENGL" => {
+            log::info!("Using OpenGL renderer");
             Box::new(OpenGLRenderBackend::new(&event_loop, &overlay_window)?)
-        };
+        }
+        "VULKAN" => {
+            log::info!("Using Vulkan renderer");
+            Box::new(VulkanRenderBackend::new(&overlay_window, &mut imgui)?)
+        }
+        _ => {
+            log::info!("Using DirectX renderer");
+            Box::new(unsafe { DirectXRenderBackend::new(&overlay_window, &mut imgui)? })
+        }
+    };
+
     Ok(System {
         event_loop,
         overlay_window,
@@ -451,7 +484,6 @@ impl SystemRuntimeController {
         if self.frame_count == 1 {
             /* initial frame */
             unsafe { ShowWindow(self.hwnd, SW_SHOWNOACTIVATE) };
-
             self.window_tracker.mark_force_update();
         }
     }

@@ -48,11 +48,13 @@ impl State for ClassNameCache {
         let cs2 = states.resolve::<StateCS2Handle>(())?;
         let entities = states.resolve::<StateEntityList>(())?;
         for identity in entities.entities() {
+            let class_info = identity.entity_class_info()?;
             self.register_class_info(&cs2, identity.entity_class_info()?)
                 .with_context(|| {
                     format!(
-                        "failed to generate class info for entity {:?}",
-                        identity.handle::<()>().unwrap_or_default()
+                        "failed to generate class info for entity {:?} (class info = {:X})",
+                        identity.handle::<()>().unwrap_or_default(),
+                        class_info.address
                     )
                 })?;
         }
@@ -76,7 +78,7 @@ impl ClassNameCache {
 
         let class_name = PtrCStr::read_object(
             &*memory,
-            u64::read_object(&*memory, address + 0x28).map_err(|e| anyhow!(e))? + 0x08,
+            u64::read_object(&*memory, address + 0x30).map_err(|e| anyhow!(e))? + 0x08,
         )
         .map_err(|e| anyhow!(e))?
         .read_string(&*memory)?
